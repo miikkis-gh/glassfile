@@ -1,0 +1,25 @@
+# Glassmorphic File Manager Configuration
+# IMPORTANT: Change the default password before deploying to production!
+
+server:
+  host: '0.0.0.0'
+  port: 8080
+  debug: false
+
+storage:
+  directory: './static/files'
+  max_file_size: 104857600  # 100MB in bytes
+  allowed_extensions: null   # null = all allowed, or list: ['.pdf', '.jpg', '.png']
+
+security:
+  # Default password is 'admin' - CHANGE THIS!
+  # Generate new hash with: python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('your_password'))"
+  admin_password_hash: 'scrypt:32768:8:1$d1FO6oE8spBpEflX$38787aaa563c76bf4f7fcf83fcc72cca2967b0e7c0e1060f489fe05c6dabee332a403cc37c4a64f8d44903ad3be5be1e312fcc4dfd628867e74c1fa816c995e3'
+  api_keys:
+    - 'eLgFc7HCKubRcBu3lNL4YpzWfdDRZSogOjbfn7tOhEc'
+  session_lifetime: 3600  # seconds
+  ip_whitelist: []        # Empty = all allowed, or ['192.168.1.1', '10.0.0.0/8']
+
+display:
+  files_per_page: 50
+  date_format: 'relative'  # 'relative' or 'absolute'
