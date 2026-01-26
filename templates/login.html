@@ -3,136 +3,793 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Glassmorphic File Manager - Secure file hosting with stunning design">
     <title>Login - Glassmorphic File Manager</title>
+
+    <!-- Google Fonts - Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        /* =================================================================
+           CSS Custom Properties - Design System
+           ================================================================= */
+        :root {
+            /* Colors - Background */
+            --color-background: #0a0a0f;
+
+            /* Colors - Text */
+            --color-text-primary: rgba(255, 255, 255, 0.95);
+            --color-text-secondary: rgba(255, 255, 255, 0.7);
+            --color-text-tertiary: rgba(255, 255, 255, 0.5);
+
+            /* Colors - Glass Surfaces */
+            --color-glass-bg: rgba(255, 255, 255, 0.1);
+            --color-glass-bg-hover: rgba(255, 255, 255, 0.15);
+            --color-glass-bg-active: rgba(255, 255, 255, 0.2);
+
+            /* Colors - Borders */
+            --color-border-subtle: rgba(255, 255, 255, 0.1);
+            --color-border-defined: rgba(255, 255, 255, 0.2);
+            --color-border-strong: rgba(255, 255, 255, 0.3);
+
+            /* Colors - Gradient Blobs */
+            --color-blob-indigo: #6366f1;
+            --color-blob-indigo-dark: #4f46e5;
+            --color-blob-violet: #8b5cf6;
+            --color-blob-violet-dark: #7c3aed;
+            --color-blob-sky: #0ea5e9;
+            --color-blob-sky-dark: #0284c7;
+            --color-blob-cyan: #06b6d4;
+            --color-blob-cyan-dark: #0891b2;
+            --color-blob-fuchsia: #d946ef;
+            --color-blob-fuchsia-dark: #c026d3;
+
+            /* Colors - Accent */
+            --color-accent-indigo: rgba(99, 102, 241, 0.5);
+            --color-accent-cyan: rgba(6, 182, 212, 0.4);
+            --color-error: rgba(239, 68, 68, 0.8);
+            --color-error-bg: rgba(239, 68, 68, 0.15);
+
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+
+            /* Blur Amounts */
+            --blur-sm: 10px;
+            --blur-md: 20px;
+            --blur-lg: 30px;
+            --blur-blob: 150px;
+
+            /* Border Radius */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+
+            /* Transitions */
+            --transition-fast: 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
+            --transition-normal: 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            --transition-slow: 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+            --transition-bounce: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+            /* Typography */
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 2rem;
+            --line-height: 1.5;
+            --letter-spacing-tight: -0.02em;
+        }
+
+        /* =================================================================
+           Reset & Base Styles
+           ================================================================= */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #0a0a0f;
-            color: #fff;
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            line-height: var(--line-height);
+            color: var(--color-text-primary);
+            background: var(--color-background);
             min-height: 100vh;
+            overflow-x: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        .login-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            padding: 2rem;
+
+        /* =================================================================
+           Animated Background System
+           ================================================================= */
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            max-width: 400px;
-            margin: 1rem;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
         }
-        h1 {
-            text-align: center;
-            margin-bottom: 1.5rem;
-            font-size: 1.5rem;
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
+
+        /* Animated Blobs */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(var(--blur-blob));
             opacity: 0.7;
+            will-change: transform;
+            transition: transform 0.5s ease-out;
         }
-        input {
+
+        /* Blob 1 - Indigo - Top Left */
+        .blob-1 {
+            width: 500px;
+            height: 500px;
+            background: linear-gradient(45deg, var(--color-blob-indigo), var(--color-blob-indigo-dark));
+            top: -15%;
+            left: -10%;
+            animation: float-1 20s cubic-bezier(0.4, 0.0, 0.2, 1) infinite alternate;
+        }
+
+        /* Blob 2 - Violet - Top Right */
+        .blob-2 {
+            width: 600px;
+            height: 600px;
+            background: linear-gradient(135deg, var(--color-blob-violet), var(--color-blob-violet-dark));
+            top: 10%;
+            right: -15%;
+            animation: float-2 25s cubic-bezier(0.4, 0.0, 0.2, 1) infinite alternate;
+        }
+
+        /* Blob 3 - Sky - Center Left */
+        .blob-3 {
+            width: 450px;
+            height: 450px;
+            background: linear-gradient(180deg, var(--color-blob-sky), var(--color-blob-sky-dark));
+            top: 40%;
+            left: -8%;
+            animation: float-3 22s cubic-bezier(0.4, 0.0, 0.2, 1) infinite alternate;
+        }
+
+        /* Blob 4 - Cyan - Bottom Right */
+        .blob-4 {
+            width: 550px;
+            height: 550px;
+            background: linear-gradient(225deg, var(--color-blob-cyan), var(--color-blob-cyan-dark));
+            bottom: -20%;
+            right: -10%;
+            animation: float-4 28s cubic-bezier(0.4, 0.0, 0.2, 1) infinite alternate;
+        }
+
+        /* Blob 5 - Fuchsia - Bottom Center */
+        .blob-5 {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(315deg, var(--color-blob-fuchsia), var(--color-blob-fuchsia-dark));
+            bottom: -10%;
+            left: 30%;
+            animation: float-5 24s cubic-bezier(0.4, 0.0, 0.2, 1) infinite alternate;
+        }
+
+        /* Blob Float Animations */
+        @keyframes float-1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(10%, 15%) scale(1.05); }
+            66% { transform: translate(5%, -10%) scale(0.95); }
+        }
+
+        @keyframes float-2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-15%, 10%) scale(0.95); }
+            66% { transform: translate(-5%, -15%) scale(1.05); }
+        }
+
+        @keyframes float-3 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(15%, -10%) scale(1.03); }
+            66% { transform: translate(-10%, 15%) scale(0.97); }
+        }
+
+        @keyframes float-4 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-10%, -15%) scale(0.98); }
+            66% { transform: translate(15%, 10%) scale(1.02); }
+        }
+
+        @keyframes float-5 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-15%, -5%) scale(1.04); }
+            66% { transform: translate(10%, 10%) scale(0.96); }
+        }
+
+        /* Noise Texture Overlay */
+        .noise-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 0.75rem 1rem;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            color: #fff;
-            font-size: 1rem;
+            height: 100%;
+            opacity: 0.04;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px 256px;
         }
-        input:focus {
-            outline: 2px solid rgba(99, 102, 241, 0.5);
+
+        /* =================================================================
+           Login Container
+           ================================================================= */
+        .login-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+            padding: var(--spacing-lg);
+            animation: fadeSlideUp var(--transition-slow) forwards;
+        }
+
+        /* =================================================================
+           Glassmorphic Login Card
+           ================================================================= */
+        .login-card {
+            background: var(--color-glass-bg);
+            backdrop-filter: blur(var(--blur-md));
+            -webkit-backdrop-filter: blur(var(--blur-md));
+            border: 1px solid var(--color-border-defined);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-2xl);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        }
+
+        /* App Logo/Title */
+        .app-logo {
+            text-align: center;
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .app-logo-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto var(--spacing-md);
+            background: linear-gradient(135deg, var(--color-blob-indigo), var(--color-blob-cyan));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+        }
+
+        .app-logo-icon svg {
+            width: 32px;
+            height: 32px;
+            color: white;
+        }
+
+        .app-title {
+            font-size: var(--font-size-2xl);
+            font-weight: 600;
+            letter-spacing: var(--letter-spacing-tight);
+            color: var(--color-text-primary);
+        }
+
+        .app-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            margin-top: var(--spacing-xs);
+        }
+
+        /* =================================================================
+           Form Styles
+           ================================================================= */
+        .form-group {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--spacing-md) var(--spacing-lg);
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            color: var(--color-text-primary);
+            background: var(--color-glass-bg);
+            border: 1px solid var(--color-border-defined);
+            border-radius: var(--radius-md);
+            outline: none;
+            transition: all var(--transition-normal);
+        }
+
+        .form-input::placeholder {
+            color: var(--color-text-tertiary);
+        }
+
+        .form-input:hover {
+            border-color: var(--color-border-strong);
+            background: var(--color-glass-bg-hover);
+        }
+
+        .form-input:focus {
+            border-color: var(--color-blob-indigo);
+            background: var(--color-glass-bg-hover);
+            box-shadow:
+                0 0 0 3px rgba(99, 102, 241, 0.2),
+                0 0 20px rgba(99, 102, 241, 0.1);
+        }
+
+        /* =================================================================
+           Error Message
+           ================================================================= */
+        .error-message {
+            display: none;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+            background: var(--color-error-bg);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-sm);
+            color: #fca5a5;
+            animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+        }
+
+        .error-message.show {
+            display: flex;
+        }
+
+        .error-message svg {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+
+        /* =================================================================
+           Glass Button Component
+           ================================================================= */
+        .glass-button {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            width: 100%;
+            padding: var(--spacing-md) var(--spacing-xl);
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--color-text-primary);
+            background: var(--color-glass-bg);
+            backdrop-filter: blur(var(--blur-md));
+            -webkit-backdrop-filter: blur(var(--blur-md));
+            border: 1px solid var(--color-border-defined);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            outline: none;
+            overflow: hidden;
+            transition: all var(--transition-normal);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .glass-button:hover {
+            transform: translateY(-2px);
+            background: var(--color-glass-bg-hover);
+            border-color: var(--color-border-strong);
+            box-shadow:
+                0 8px 32px rgba(99, 102, 241, 0.4),
+                0 0 40px rgba(99, 102, 241, 0.2);
+        }
+
+        .glass-button:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .glass-button:focus-visible {
+            outline: 2px solid var(--color-accent-indigo);
             outline-offset: 2px;
         }
-        button {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background: rgba(99, 102, 241, 0.5);
-            border: 1px solid rgba(99, 102, 241, 0.7);
-            border-radius: 8px;
-            color: #fff;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        button:hover {
-            background: rgba(99, 102, 241, 0.7);
-            transform: translateY(-2px);
-        }
-        button:disabled {
-            opacity: 0.5;
+
+        .glass-button:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
-        .error {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid rgba(239, 68, 68, 0.5);
-            color: #fca5a5;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
+
+        .glass-button:disabled:hover {
+            background: var(--color-glass-bg);
+            border-color: var(--color-border-defined);
+        }
+
+        /* Button Icon */
+        .button-icon {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        /* Button Arrow (reveals on hover) */
+        .button-arrow {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            opacity: 0;
+            transform: translateX(-8px);
+            transition: all var(--transition-bounce);
+        }
+
+        .glass-button:hover .button-arrow {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .glass-button:disabled .button-arrow {
             display: none;
         }
-        .error.show { display: block; }
+
+        /* Loading Spinner */
+        .button-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* =================================================================
+           Entrance Animation
+           ================================================================= */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* =================================================================
+           Responsive Design
+           ================================================================= */
+
+        /* Mobile (< 640px) */
+        @media (max-width: 639px) {
+            .blob {
+                filter: blur(100px);
+            }
+
+            .blob-1 { width: 300px; height: 300px; }
+            .blob-2 { width: 350px; height: 350px; }
+            .blob-3 { width: 280px; height: 280px; }
+            .blob-4 { width: 320px; height: 320px; }
+            .blob-5 { width: 250px; height: 250px; }
+
+            .login-card {
+                padding: var(--spacing-xl);
+                backdrop-filter: blur(var(--blur-sm));
+                -webkit-backdrop-filter: blur(var(--blur-sm));
+            }
+
+            .app-logo-icon {
+                width: 56px;
+                height: 56px;
+            }
+
+            .app-title {
+                font-size: var(--font-size-xl);
+            }
+        }
+
+        /* Tablet (640px - 1024px) */
+        @media (min-width: 640px) and (max-width: 1023px) {
+            .blob {
+                filter: blur(120px);
+            }
+
+            .blob-1 { width: 400px; height: 400px; }
+            .blob-2 { width: 500px; height: 500px; }
+            .blob-3 { width: 380px; height: 380px; }
+            .blob-4 { width: 450px; height: 450px; }
+            .blob-5 { width: 350px; height: 350px; }
+
+            .login-card {
+                backdrop-filter: blur(15px);
+                -webkit-backdrop-filter: blur(15px);
+            }
+        }
+
+        /* =================================================================
+           Accessibility: Reduced Motion
+           ================================================================= */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            .blob {
+                animation: none !important;
+            }
+
+            .login-container {
+                animation: none;
+                opacity: 1;
+            }
+        }
+
+        /* =================================================================
+           Accessibility: High Contrast
+           ================================================================= */
+        @media (prefers-contrast: high) {
+            .login-card {
+                border-width: 2px;
+                background: rgba(255, 255, 255, 0.15);
+            }
+
+            .form-input {
+                border-width: 2px;
+            }
+
+            .glass-button {
+                border-width: 2px;
+                background: rgba(255, 255, 255, 0.15);
+            }
+        }
+
+        /* =================================================================
+           Skip to Content (Accessibility)
+           ================================================================= */
+        .skip-link {
+            position: absolute;
+            top: -100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--color-background);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border-defined);
+            border-radius: var(--radius-sm);
+            z-index: 1000;
+            transition: top var(--transition-fast);
+        }
+
+        .skip-link:focus {
+            top: var(--spacing-md);
+        }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <h1>File Manager</h1>
-        <div class="error" id="error"></div>
-        <form id="login-form">
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autofocus>
-            </div>
-            <button type="submit" id="submit-btn">Sign In</button>
-        </form>
+    <!-- Skip to Content Link (Accessibility) -->
+    <a href="#login-form" class="skip-link">Skip to login form</a>
+
+    <!-- Animated Background -->
+    <div class="background" aria-hidden="true">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+        <div class="blob blob-4"></div>
+        <div class="blob blob-5"></div>
+        <div class="noise-overlay"></div>
     </div>
 
+    <!-- Login Container -->
+    <main class="login-container">
+        <div class="login-card">
+            <!-- App Logo -->
+            <div class="app-logo">
+                <div class="app-logo-icon">
+                    <!-- File/Folder Icon -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                </div>
+                <h1 class="app-title">File Manager</h1>
+                <p class="app-subtitle">Secure file hosting</p>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="error-message" role="alert" aria-live="polite">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span id="error-text"></span>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" novalidate>
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        class="form-input"
+                        placeholder="Enter your password"
+                        required
+                        autocomplete="current-password"
+                        aria-describedby="error-text"
+                    >
+                </div>
+
+                <button type="submit" class="glass-button" id="submit-btn" aria-label="Sign in to your account">
+                    <!-- Lock Icon -->
+                    <svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span class="button-text">Sign In</span>
+                    <!-- Arrow Icon -->
+                    <svg class="button-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </main>
+
     <script>
+        // =================================================================
+        // Mouse Parallax Effect
+        // =================================================================
+        let mouseX = 0;
+        let mouseY = 0;
+        let targetX = 0;
+        let targetY = 0;
+        let animationId = null;
+
+        // Check for reduced motion preference
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (!prefersReducedMotion) {
+            document.addEventListener('mousemove', (e) => {
+                targetX = (e.clientX / window.innerWidth) * 2 - 1;
+                targetY = (e.clientY / window.innerHeight) * 2 - 1;
+            });
+
+            function animateParallax() {
+                // Smooth lerp (linear interpolation)
+                mouseX += (targetX - mouseX) * 0.08;
+                mouseY += (targetY - mouseY) * 0.08;
+
+                const blobs = document.querySelectorAll('.blob');
+                blobs.forEach((blob, index) => {
+                    // Different depth multiplier for each blob (creates layered effect)
+                    const depth = (index + 1) * 6;
+                    const x = mouseX * depth;
+                    const y = mouseY * depth;
+                    // Use translate3d for GPU acceleration
+                    blob.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+                });
+
+                animationId = requestAnimationFrame(animateParallax);
+            }
+
+            animateParallax();
+        }
+
+        // =================================================================
+        // Login Form Handling
+        // =================================================================
         const form = document.getElementById('login-form');
-        const errorDiv = document.getElementById('error');
+        const passwordInput = document.getElementById('password');
         const submitBtn = document.getElementById('submit-btn');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+
+        // Store original button content
+        const originalButtonContent = submitBtn.innerHTML;
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.add('show');
+            passwordInput.focus();
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('show');
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `
+                    <div class="button-spinner"></div>
+                    <span class="button-text">Signing in...</span>
+                `;
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalButtonContent;
+            }
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            errorDiv.classList.remove('show');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Signing in...';
+            hideError();
+
+            const password = passwordInput.value.trim();
+
+            if (!password) {
+                showError('Please enter your password');
+                return;
+            }
+
+            setLoading(true);
 
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        password: document.getElementById('password').value
-                    })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
+                    // Redirect to main page
                     window.location.href = '/';
                 } else {
-                    errorDiv.textContent = data.error || 'Login failed';
-                    errorDiv.classList.add('show');
+                    showError(data.error || 'Invalid password');
+                    setLoading(false);
                 }
             } catch (err) {
-                errorDiv.textContent = 'Network error. Please try again.';
-                errorDiv.classList.add('show');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Sign In';
+                showError('Network error. Please check your connection and try again.');
+                setLoading(false);
             }
         });
+
+        // Clear error when typing
+        passwordInput.addEventListener('input', hideError);
+
+        // Auto-focus password field
+        passwordInput.focus();
     </script>
 </body>
 </html>
