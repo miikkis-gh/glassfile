@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glassmorphic File Manager</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #0a0a0f;
+            color: #fff;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        h1 { font-size: 1.5rem; }
+        .action-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        button, .btn {
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        button:hover, .btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        .btn-primary {
+            background: rgba(6, 182, 212, 0.3);
+            border-color: rgba(6, 182, 212, 0.5);
+        }
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        .file-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+        .file-card:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-4px);
+        }
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            word-break: break-all;
+        }
+        .file-meta {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-bottom: 1rem;
+        }
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .file-actions button {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            opacity: 0.7;
+        }
+        .upload-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .upload-modal.show { display: flex; }
+        .upload-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 500px;
+            margin: 1rem;
+        }
+        .drop-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.drag-over {
+            border-color: rgba(6, 182, 212, 0.7);
+            background: rgba(6, 182, 212, 0.1);
+        }
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { border-color: rgba(239, 68, 68, 0.5); }
+        .toast.success { border-color: rgba(34, 197, 94, 0.5); }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>File Manager</h1>
+        <a href="/logout" class="btn">Logout</a>
+    </header>
+
+    <section class="action-bar">
+        <button class="btn-primary" onclick="showUploadModal()">Upload Files</button>
+        <button onclick="loadFiles()">Refresh</button>
+    </section>
+
+    <section class="file-grid" id="file-grid"></section>
+    <div class="empty-state" id="empty-state" style="display: none;">
+        <p>No files yet</p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">Upload your first file to get started</p>
+    </div>
+
+    <div class="upload-modal" id="upload-modal">
+        <div class="upload-card">
+            <h2 style="margin-bottom: 1rem;">Upload Files</h2>
+            <div class="drop-zone" id="drop-zone">
+                <p>Drag files here or click to browse</p>
+            </div>
+            <input type="file" id="file-input" multiple style="display: none;">
+            <div style="margin-top: 1rem; text-align: right;">
+                <button onclick="hideUploadModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const fileGrid = document.getElementById('file-grid');
+        const emptyState = document.getElementById('empty-state');
+        const uploadModal = document.getElementById('upload-modal');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const toast = document.getElementById('toast');
+
+        // Load files on page load
+        document.addEventListener('DOMContentLoaded', loadFiles);
+
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const data = await response.json();
+
+                if (data.success) {
+                    renderFiles(data.data.files);
+                } else {
+                    showToast(data.error || 'Failed to load files', 'error');
+                }
+            } catch (err) {
+                showToast('Network error', 'error');
+            }
+        }
+
+        function renderFiles(files) {
+            if (files.length === 0) {
+                fileGrid.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            fileGrid.innerHTML = files.map(file => `
+                <div class="file-card">
+                    <div class="file-name">${escapeHtml(file.name)}</div>
+                    <div class="file-meta">${file.size_formatted} &bull; ${file.modified_relative}</div>
+                    <div class="file-actions">
+                        <a href="${file.url}" class="btn" download>Download</a>
+                        <button onclick="copyLink('${escapeHtml(file.name)}')">Copy Link</button>
+                        <button onclick="renameFile('${escapeHtml(file.name)}')">Rename</button>
+                        <button class="btn-danger" onclick="deleteFile('${escapeHtml(file.name)}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showUploadModal() {
+            uploadModal.classList.add('show');
+        }
+
+        function hideUploadModal() {
+            uploadModal.classList.remove('show');
+        }
+
+        // Drag and drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            uploadFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', () => {
+            uploadFiles(fileInput.files);
+        });
+
+        async function uploadFiles(files) {
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        showToast(`Uploaded ${file.name}`, 'success');
+                    } else {
+                        showToast(data.error || `Failed to upload ${file.name}`, 'error');
+                    }
+                } catch (err) {
+                    showToast(`Network error uploading ${file.name}`, 'error');
+                }
+            }
+            hideUploadModal();
+            loadFiles();
+            fileInput.value = '';
+        }
+
+        async function deleteFile(filename) {
+            if (!confirm(`Delete "${filename}"?`)) return;
+
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('File deleted', 'success');
+                    loadFiles();
+                } else {
+                    showToast(data.error || 'Failed to delete', 'error');
+                }
+            } catch (err) {
+                showToast('Network error', 'error');
+            }
+        }
+
+        async function renameFile(filename) {
+            const newName = prompt('Enter new name:', filename);
+            if (!newName || newName === filename) return;
+
+            try {
+                const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_name: newName })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('File renamed', 'success');
+                    loadFiles();
+                } else {
+                    showToast(data.error || 'Failed to rename', 'error');
+                }
+            } catch (err) {
+                showToast('Network error', 'error');
+            }
+        }
+
+        function copyLink(filename) {
+            const url = `${window.location.origin}/files/${encodeURIComponent(filename)}`;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('Link copied to clipboard', 'success');
+            }).catch(() => {
+                showToast('Failed to copy link', 'error');
+            });
+        }
+
+        function showToast(message, type = 'info') {
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') hideUploadModal();
+        });
+        // Close modal on backdrop click
+        uploadModal.addEventListener('click', (e) => {
+            if (e.target === uploadModal) hideUploadModal();
+        });
+    </script>
+</body>
+</html>
