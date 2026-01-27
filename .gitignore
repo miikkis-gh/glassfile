@@ -22,3 +22,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+# Documentation (local only)
+CLAUDE.md
+MILESTONES.md
