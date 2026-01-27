@@ -1,0 +1,696 @@
+#!/usr/bin/env python3
+"""
+Glassmorphic File Manager - CLI Tool
+A powerful command-line interface for managing files on your server.
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urljoin
+
+try:
+    import requests
+except ImportError:
+    print("\033[91mError: 'requests' library not found.\033[0m")
+    print("Install it with: pip install requests")
+    sys.exit(1)
+
+# =============================================================================
+# ANSI Color Codes
+# =============================================================================
+
+class Colors:
+    """ANSI color codes for terminal output."""
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+
+    # Colors
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    GRAY = '\033[90m'
+
+    @classmethod
+    def disable(cls):
+        """Disable colors (for non-TTY output)."""
+        cls.RESET = cls.BOLD = cls.DIM = ''
+        cls.RED = cls.GREEN = cls.YELLOW = cls.BLUE = ''
+        cls.MAGENTA = cls.CYAN = cls.WHITE = cls.GRAY = ''
+
+
+# Disable colors if not a TTY
+if not sys.stdout.isatty():
+    Colors.disable()
+
+
+# =============================================================================
+# Configuration Management
+# =============================================================================
+
+CONFIG_PATH = Path.home() / '.filemanager.conf'
+DEFAULT_CONFIG = {
+    'server_url': 'http://localhost:8080',
+    'api_key': '',
+}
+
+
+def load_config() -> dict:
+    """Load configuration from file."""
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
+                return {**DEFAULT_CONFIG, **config}
+        except (json.JSONDecodeError, IOError):
+            pass
+    return DEFAULT_CONFIG.copy()
+
+
+def save_config(config: dict) -> None:
+    """Save configuration to file."""
+    try:
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(config, f, indent=2)
+        os.chmod(CONFIG_PATH, 0o600)  # Secure permissions
+    except IOError as e:
+        print(f"{Colors.RED}Error saving config: {e}{Colors.RESET}")
+
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
+def format_size(size_bytes: int) -> str:
+    """Format file size in human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} PB"
+
+
+def format_relative_time(iso_timestamp: str) -> str:
+    """Convert ISO timestamp to relative time string."""
+    try:
+        dt = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
+        now = datetime.now()
+        diff = now - dt.replace(tzinfo=None)
+
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            return "just now"
+        elif seconds < 3600:
+            minutes = int(seconds / 60)
+            return f"{minutes}m ago"
+        elif seconds < 86400:
+            hours = int(seconds / 3600)
+            return f"{hours}h ago"
+        elif seconds < 604800:
+            days = int(seconds / 86400)
+            return f"{days}d ago"
+        else:
+            return dt.strftime('%b %d, %Y')
+    except (ValueError, TypeError):
+        return iso_timestamp
+
+
+def print_success(message: str) -> None:
+    """Print success message."""
+    print(f"{Colors.GREEN}✓{Colors.RESET} {message}")
+
+
+def print_error(message: str) -> None:
+    """Print error message."""
+    print(f"{Colors.RED}✗{Colors.RESET} {message}")
+
+
+def print_warning(message: str) -> None:
+    """Print warning message."""
+    print(f"{Colors.YELLOW}!{Colors.RESET} {message}")
+
+
+def print_info(message: str) -> None:
+    """Print info message."""
+    print(f"{Colors.CYAN}ℹ{Colors.RESET} {message}")
+
+
+# =============================================================================
+# Progress Bar
+# =============================================================================
+
+class ProgressBar:
+    """Simple progress bar for file operations."""
+
+    def __init__(self, total: int, width: int = 40, description: str = ''):
+        self.total = total
+        self.width = width
+        self.description = description
+        self.current = 0
+        self.start_time = time.time()
+
+    def update(self, amount: int) -> None:
+        """Update progress by amount."""
+        self.current += amount
+        self._render()
+
+    def set(self, value: int) -> None:
+        """Set progress to specific value."""
+        self.current = value
+        self._render()
+
+    def _render(self) -> None:
+        """Render the progress bar."""
+        if self.total == 0:
+            percent = 100
+        else:
+            percent = min(100, (self.current / self.total) * 100)
+
+        filled = int(self.width * percent / 100)
+        bar = '█' * filled + '░' * (self.width - filled)
+
+        # Calculate speed
+        elapsed = time.time() - self.start_time
+        if elapsed > 0 and self.current > 0:
+            speed = self.current / elapsed
+            speed_str = f"{format_size(int(speed))}/s"
+        else:
+            speed_str = "---"
+
+        # Build line
+        desc = f"{self.description}: " if self.description else ""
+        line = f"\r{desc}{Colors.CYAN}{bar}{Colors.RESET} {percent:5.1f}% | {format_size(self.current)}/{format_size(self.total)} | {speed_str}"
+
+        print(line, end='', flush=True)
+
+    def finish(self) -> None:
+        """Complete the progress bar."""
+        self.current = self.total
+        self._render()
+        print()  # New line
+
+
+# =============================================================================
+# API Client
+# =============================================================================
+
+class FileManagerClient:
+    """API client for the file manager server."""
+
+    def __init__(self, server_url: str, api_key: str):
+        self.server_url = server_url.rstrip('/')
+        self.api_key = api_key
+        self.session = requests.Session()
+        self.session.headers['X-API-Key'] = api_key
+
+    def _request(self, method: str, endpoint: str, retry: int = 3, **kwargs) -> requests.Response:
+        """Make an API request with retry logic."""
+        url = urljoin(self.server_url + '/', endpoint.lstrip('/'))
+
+        for attempt in range(retry):
+            try:
+                response = self.session.request(method, url, timeout=30, **kwargs)
+                return response
+            except requests.exceptions.ConnectionError:
+                if attempt < retry - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff
+                    print_warning(f"Connection failed, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise
+            except requests.exceptions.Timeout:
+                if attempt < retry - 1:
+                    wait_time = 2 ** attempt
+                    print_warning(f"Request timed out, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise
+
+        raise requests.exceptions.ConnectionError("Max retries exceeded")
+
+    def list_files(self) -> dict:
+        """List all files."""
+        response = self._request('GET', '/api/files')
+        return response.json()
+
+    def upload_file(self, filepath: Path, progress_callback=None) -> dict:
+        """Upload a file."""
+        if not filepath.exists():
+            return {'success': False, 'error': 'File not found'}
+
+        file_size = filepath.stat().st_size
+
+        with open(filepath, 'rb') as f:
+            # Create a wrapper for progress tracking
+            if progress_callback:
+                class ProgressWrapper:
+                    def __init__(self, file, callback, total):
+                        self.file = file
+                        self.callback = callback
+                        self.total = total
+                        self.uploaded = 0
+
+                    def read(self, size=-1):
+                        data = self.file.read(size)
+                        self.uploaded += len(data)
+                        self.callback(self.uploaded, self.total)
+                        return data
+
+                    def seek(self, *args):
+                        return self.file.seek(*args)
+
+                    def tell(self):
+                        return self.file.tell()
+
+                wrapper = ProgressWrapper(f, progress_callback, file_size)
+                files = {'file': (filepath.name, wrapper)}
+            else:
+                files = {'file': (filepath.name, f)}
+
+            response = self._request('POST', '/api/upload', files=files)
+
+        return response.json()
+
+    def download_file(self, filename: str, dest_path: Path, progress_callback=None) -> bool:
+        """Download a file."""
+        url = urljoin(self.server_url + '/', f'/files/{filename}')
+
+        try:
+            response = self.session.get(url, stream=True, timeout=30)
+
+            if response.status_code == 404:
+                return False
+
+            response.raise_for_status()
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
+            with open(dest_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if progress_callback:
+                            progress_callback(downloaded, total_size)
+
+            return True
+        except requests.exceptions.RequestException:
+            return False
+
+    def delete_file(self, filename: str) -> dict:
+        """Delete a file."""
+        response = self._request('DELETE', f'/api/files/{filename}')
+        return response.json()
+
+    def rename_file(self, old_name: str, new_name: str) -> dict:
+        """Rename a file."""
+        response = self._request(
+            'PUT',
+            f'/api/files/{old_name}',
+            json={'new_name': new_name}
+        )
+        return response.json()
+
+    def get_file_info(self, filename: str) -> dict:
+        """Get file information."""
+        response = self._request('GET', f'/api/files/{filename}/info')
+        return response.json()
+
+    def health_check(self) -> bool:
+        """Check if server is reachable."""
+        try:
+            response = self._request('GET', '/health', retry=1)
+            return response.status_code == 200
+        except:
+            return False
+
+
+# =============================================================================
+# CLI Commands
+# =============================================================================
+
+def cmd_list(client: FileManagerClient, args) -> int:
+    """List all files."""
+    try:
+        result = client.list_files()
+
+        if not result.get('success'):
+            print_error(result.get('error', 'Failed to list files'))
+            return 1
+
+        files = result['data']['files']
+
+        if not files:
+            print_info("No files found.")
+            return 0
+
+        # Print header
+        print()
+        print(f"{Colors.BOLD}{'NAME':<40} {'SIZE':>10} {'MODIFIED':>15}{Colors.RESET}")
+        print(f"{Colors.GRAY}{'─' * 67}{Colors.RESET}")
+
+        # Print files
+        for f in files:
+            name = f['name']
+            if len(name) > 38:
+                name = name[:35] + '...'
+
+            size = f.get('size_formatted', format_size(f.get('size', 0)))
+            modified = f.get('modified_relative', format_relative_time(f.get('modified', '')))
+
+            print(f"{name:<40} {size:>10} {modified:>15}")
+
+        print(f"{Colors.GRAY}{'─' * 67}{Colors.RESET}")
+        total_size = sum(f.get('size', 0) for f in files)
+        print(f"{Colors.DIM}{len(files)} file(s), {format_size(total_size)} total{Colors.RESET}")
+        print()
+
+        return 0
+
+    except requests.exceptions.ConnectionError:
+        print_error("Cannot connect to server. Is it running?")
+        return 1
+    except Exception as e:
+        print_error(f"Error: {e}")
+        return 1
+
+
+def cmd_upload(client: FileManagerClient, args) -> int:
+    """Upload a file."""
+    filepath = Path(args.file).resolve()
+
+    if not filepath.exists():
+        print_error(f"File not found: {filepath}")
+        return 1
+
+    if not filepath.is_file():
+        print_error(f"Not a file: {filepath}")
+        return 1
+
+    file_size = filepath.stat().st_size
+    print_info(f"Uploading {filepath.name} ({format_size(file_size)})")
+
+    progress = ProgressBar(file_size, description='Upload')
+
+    def update_progress(uploaded, total):
+        progress.set(uploaded)
+
+    try:
+        result = client.upload_file(filepath, progress_callback=update_progress)
+        progress.finish()
+
+        if result.get('success'):
+            url = urljoin(client.server_url + '/', result['data']['url'])
+            print_success(f"Uploaded successfully!")
+            print(f"   {Colors.CYAN}URL:{Colors.RESET} {url}")
+            return 0
+        else:
+            print_error(result.get('error', 'Upload failed'))
+            return 1
+
+    except requests.exceptions.ConnectionError:
+        print()
+        print_error("Cannot connect to server. Is it running?")
+        return 1
+    except Exception as e:
+        print()
+        print_error(f"Error: {e}")
+        return 1
+
+
+def cmd_download(client: FileManagerClient, args) -> int:
+    """Download a file."""
+    filename = args.filename
+    dest = Path(args.output) if args.output else Path.cwd() / filename
+
+    if dest.exists() and not args.force:
+        print_error(f"File already exists: {dest}")
+        print_info("Use --force to overwrite")
+        return 1
+
+    # Get file info first
+    try:
+        info = client.get_file_info(filename)
+        if not info.get('success'):
+            print_error(f"File not found: {filename}")
+            return 1
+
+        file_size = info['data'].get('size', 0)
+        print_info(f"Downloading {filename} ({format_size(file_size)})")
+
+        progress = ProgressBar(file_size, description='Download')
+
+        def update_progress(downloaded, total):
+            progress.set(downloaded)
+
+        success = client.download_file(filename, dest, progress_callback=update_progress)
+        progress.finish()
+
+        if success:
+            print_success(f"Downloaded to: {dest}")
+            return 0
+        else:
+            print_error("Download failed")
+            return 1
+
+    except requests.exceptions.ConnectionError:
+        print_error("Cannot connect to server. Is it running?")
+        return 1
+    except Exception as e:
+        print_error(f"Error: {e}")
+        return 1
+
+
+def cmd_delete(client: FileManagerClient, args) -> int:
+    """Delete a file."""
+    filename = args.filename
+
+    if not args.force:
+        confirm = input(f"Delete '{filename}'? [y/N] ").strip().lower()
+        if confirm != 'y':
+            print_info("Cancelled")
+            return 0
+
+    try:
+        result = client.delete_file(filename)
+
+        if result.get('success'):
+            print_success(f"Deleted: {filename}")
+            return 0
+        else:
+            print_error(result.get('error', 'Delete failed'))
+            return 1
+
+    except requests.exceptions.ConnectionError:
+        print_error("Cannot connect to server. Is it running?")
+        return 1
+    except Exception as e:
+        print_error(f"Error: {e}")
+        return 1
+
+
+def cmd_rename(client: FileManagerClient, args) -> int:
+    """Rename a file."""
+    try:
+        result = client.rename_file(args.old_name, args.new_name)
+
+        if result.get('success'):
+            print_success(f"Renamed: {args.old_name} → {args.new_name}")
+            return 0
+        else:
+            print_error(result.get('error', 'Rename failed'))
+            return 1
+
+    except requests.exceptions.ConnectionError:
+        print_error("Cannot connect to server. Is it running?")
+        return 1
+    except Exception as e:
+        print_error(f"Error: {e}")
+        return 1
+
+
+def cmd_info(client: FileManagerClient, args) -> int:
+    """Show file information."""
+    try:
+        result = client.get_file_info(args.filename)
+
+        if not result.get('success'):
+            print_error(result.get('error', 'File not found'))
+            return 1
+
+        data = result['data']
+
+        print()
+        print(f"{Colors.BOLD}File Information{Colors.RESET}")
+        print(f"{Colors.GRAY}{'─' * 40}{Colors.RESET}")
+        print(f"  {Colors.CYAN}Name:{Colors.RESET}      {data['name']}")
+        print(f"  {Colors.CYAN}Size:{Colors.RESET}      {data.get('size_formatted', format_size(data.get('size', 0)))}")
+        print(f"  {Colors.CYAN}Type:{Colors.RESET}      {data.get('extension', 'unknown')}")
+        print(f"  {Colors.CYAN}Modified:{Colors.RESET}  {data.get('modified_relative', format_relative_time(data.get('modified', '')))}")
+        print(f"  {Colors.CYAN}Created:{Colors.RESET}   {data.get('created_relative', format_relative_time(data.get('created', '')))}")
+        print(f"  {Colors.CYAN}URL:{Colors.RESET}       {client.server_url}{data['url']}")
+        print()
+
+        return 0
+
+    except requests.exceptions.ConnectionError:
+        print_error("Cannot connect to server. Is it running?")
+        return 1
+    except Exception as e:
+        print_error(f"Error: {e}")
+        return 1
+
+
+def cmd_config(client: FileManagerClient, args) -> int:
+    """Show or set configuration."""
+    config = load_config()
+
+    if args.server:
+        config['server_url'] = args.server.rstrip('/')
+        save_config(config)
+        print_success(f"Server URL set to: {config['server_url']}")
+
+    if args.key:
+        config['api_key'] = args.key
+        save_config(config)
+        print_success("API key saved")
+
+    if not args.server and not args.key:
+        # Show current config
+        print()
+        print(f"{Colors.BOLD}Configuration{Colors.RESET}")
+        print(f"{Colors.GRAY}{'─' * 40}{Colors.RESET}")
+        print(f"  {Colors.CYAN}Config file:{Colors.RESET} {CONFIG_PATH}")
+        print(f"  {Colors.CYAN}Server URL:{Colors.RESET}  {config['server_url']}")
+        print(f"  {Colors.CYAN}API Key:{Colors.RESET}     {'*' * 8 if config['api_key'] else '(not set)'}")
+
+        # Test connection
+        if config['api_key']:
+            print()
+            print_info("Testing connection...")
+            test_client = FileManagerClient(config['server_url'], config['api_key'])
+            if test_client.health_check():
+                print_success("Server is reachable")
+            else:
+                print_error("Cannot connect to server")
+        print()
+
+    return 0
+
+
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create argument parser."""
+    parser = argparse.ArgumentParser(
+        prog='filemanager',
+        description=f'{Colors.CYAN}Glassmorphic File Manager - CLI Tool{Colors.RESET}',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"""
+{Colors.BOLD}Examples:{Colors.RESET}
+  filemanager list                    List all files
+  filemanager upload photo.jpg        Upload a file
+  filemanager download report.pdf     Download a file
+  filemanager delete old-file.txt     Delete a file
+  filemanager rename old.txt new.txt  Rename a file
+  filemanager config --key API_KEY    Set your API key
+
+{Colors.DIM}For more information, visit: https://github.com/your-repo/glassfile{Colors.RESET}
+"""
+    )
+
+    parser.add_argument(
+        '-v', '--version',
+        action='version',
+        version=f'filemanager 1.0.0'
+    )
+
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # List command
+    list_parser = subparsers.add_parser('list', aliases=['ls'], help='List all files')
+    list_parser.set_defaults(func=cmd_list)
+
+    # Upload command
+    upload_parser = subparsers.add_parser('upload', aliases=['up'], help='Upload a file')
+    upload_parser.add_argument('file', help='File to upload')
+    upload_parser.set_defaults(func=cmd_upload)
+
+    # Download command
+    download_parser = subparsers.add_parser('download', aliases=['dl'], help='Download a file')
+    download_parser.add_argument('filename', help='Name of file to download')
+    download_parser.add_argument('-o', '--output', help='Output path')
+    download_parser.add_argument('-f', '--force', action='store_true', help='Overwrite existing file')
+    download_parser.set_defaults(func=cmd_download)
+
+    # Delete command
+    delete_parser = subparsers.add_parser('delete', aliases=['rm'], help='Delete a file')
+    delete_parser.add_argument('filename', help='Name of file to delete')
+    delete_parser.add_argument('-f', '--force', action='store_true', help='Skip confirmation')
+    delete_parser.set_defaults(func=cmd_delete)
+
+    # Rename command
+    rename_parser = subparsers.add_parser('rename', aliases=['mv'], help='Rename a file')
+    rename_parser.add_argument('old_name', help='Current file name')
+    rename_parser.add_argument('new_name', help='New file name')
+    rename_parser.set_defaults(func=cmd_rename)
+
+    # Info command
+    info_parser = subparsers.add_parser('info', help='Show file information')
+    info_parser.add_argument('filename', help='Name of file')
+    info_parser.set_defaults(func=cmd_info)
+
+    # Config command
+    config_parser = subparsers.add_parser('config', help='Show or set configuration')
+    config_parser.add_argument('--server', '-s', help='Set server URL')
+    config_parser.add_argument('--key', '-k', help='Set API key')
+    config_parser.set_defaults(func=cmd_config)
+
+    return parser
+
+
+def main() -> int:
+    """Main entry point."""
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return 0
+
+    # Load config
+    config = load_config()
+
+    # Check API key for commands that need it
+    if args.command not in ['config'] and not config['api_key']:
+        print_error("API key not configured")
+        print_info("Run: filemanager config --key YOUR_API_KEY")
+        return 1
+
+    # Create client
+    client = FileManagerClient(config['server_url'], config['api_key'])
+
+    # Execute command
+    return args.func(client, args)
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print()
+        print_info("Cancelled")
+        sys.exit(130)
