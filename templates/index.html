@@ -12,6 +12,88 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
+        /* =================================================================
+           CSS Custom Properties - Design System
+           ================================================================= */
+        :root {
+            /* Colors - Background */
+            --color-background: #0a0a0f;
+
+            /* Colors - Text */
+            --color-text-primary: rgba(255, 255, 255, 0.95);
+            --color-text-secondary: rgba(255, 255, 255, 0.7);
+            --color-text-tertiary: rgba(255, 255, 255, 0.5);
+
+            /* Colors - Glass Surfaces */
+            --color-glass-bg: rgba(255, 255, 255, 0.1);
+            --color-glass-bg-hover: rgba(255, 255, 255, 0.15);
+            --color-glass-bg-active: rgba(255, 255, 255, 0.2);
+
+            /* Colors - Borders */
+            --color-border-subtle: rgba(255, 255, 255, 0.1);
+            --color-border-defined: rgba(255, 255, 255, 0.2);
+            --color-border-strong: rgba(255, 255, 255, 0.3);
+
+            /* Colors - Gradient Blobs */
+            --color-blob-indigo: #6366f1;
+            --color-blob-indigo-dark: #4f46e5;
+            --color-blob-violet: #8b5cf6;
+            --color-blob-violet-dark: #7c3aed;
+            --color-blob-sky: #0ea5e9;
+            --color-blob-sky-dark: #0284c7;
+            --color-blob-cyan: #06b6d4;
+            --color-blob-cyan-dark: #0891b2;
+            --color-blob-fuchsia: #d946ef;
+            --color-blob-fuchsia-dark: #c026d3;
+
+            /* Colors - Accent */
+            --color-accent-indigo: rgba(99, 102, 241, 0.5);
+            --color-accent-cyan: rgba(6, 182, 212, 0.4);
+            --color-error: rgba(239, 68, 68, 0.8);
+            --color-error-bg: rgba(239, 68, 68, 0.15);
+
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+
+            /* Blur Amounts */
+            --blur-sm: 10px;
+            --blur-md: 20px;
+            --blur-lg: 30px;
+            --blur-blob: 150px;
+
+            /* Border Radius */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+
+            /* Transitions */
+            --transition-fast: 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
+            --transition-normal: 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            --transition-slow: 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+            --transition-bounce: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+            /* Typography */
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 2rem;
+            --line-height: 1.5;
+            --letter-spacing-tight: -0.02em;
+
+            /* Layout */
+            --max-width: 1400px;
+        }
+
         /* Base styles */
         * {
             -webkit-font-smoothing: antialiased;
